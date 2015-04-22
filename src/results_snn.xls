@@ -1,0 +1,10 @@
+current_time behave_state event[0]-ping event[1]-battery event[2]-bump event[3]-beam global_ach global_dopa global_sero global_openfield global_explore global_wallfollow  global_findhome 
+0.000880241 1 0 0 1 1 88 232 208 0 0 144 144 
+36.3797 1 0 0 1 0 80 5 60 0 0 12 212 
+75.059 1 0 0 0 0 0 0 0 0 0 0 0 
+114.907 1 0 0 0 1 68 44 208 160 160 144 144 
+153.532 1 0 0 0 1 68 14 208 48 48 144 144 
+192.942 1 0 0 1 0 80 5 60 0 0 12 184 
+235.956 1 0 0 1 0 80 5 60 0 0 12 184 
+273.826 1 1 0 1 0 180 215 77 76 76 232 176 
+313.166 1 0 0 1 0 80 5 60 0 0 12 184 

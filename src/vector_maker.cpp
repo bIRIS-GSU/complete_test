@@ -1,0 +1,1515 @@
+//Ros Header
+#include "ros/ros.h"
+
+//Msg headers
+#include <std_msgs/String.h>
+#include <std_msgs/Empty.h>
+
+#include <tf/tf.h>
+
+#include <geometry_msgs/Twist.h> //Movement Msgs
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+
+
+#include <nav_msgs/Odometry.h> //Odom Msgs
+
+
+#include <sensor_msgs/Image.h> //Depth Image Msgs
+#include <sensor_msgs/CameraInfo.h> //CameraInfo Msgs
+#include <sensor_msgs/LaserScan.h> //LaserScan Msgs
+
+#include <kobuki_msgs/DockInfraRed.h> //Kobuki IR Sensor Status Msgs
+#include <kobuki_msgs/SensorState.h> //Kobuki interal Sensor Msgs
+#include "complete_test/irobotdock.h"
+#include "complete_test/snnevent.h"
+
+
+#include <fstream>
+#include <iterator>
+#include <string>
+#include <vector>
+
+#include <sstream>
+
+//#include "../../../../carlsim-2.2.0/examples/random/main_random.cpp"
+
+using namespace std;
+
+
+const double PI = 3.1415926;
+int global1 = 1;
+int global2 = 2;
+int dir_vector = 0;
+int controlint = 0;
+float originyaw;
+int directturn = 0;
+float fromleft = 0;
+float fromright = 0;
+int stage = 0;
+vector <double> locate(5,0);
+int locate_enable = 0;
+int locate_enablevar = 1;
+int enable_sub = 1;
+//ros::Publisher chatter_pub;
+//ros::Publisher chatter_pub2;
+ros::Publisher chatter_pub3;
+int count_up = 0;
+
+/*
+double rand_num()
+{
+	int v1 = (rand() % 10001);
+    double number = (rand() % 10001) / 10000.0;
+	return number;
+
+}
+
+*/
+
+/*
+double sum_vector(vector <double> vector)
+{
+	double sum;
+	for(int i = 0; i < vector.size();i++)
+	{
+	  sum = sum + vector[i];	
+	}
+ return sum;
+}
+*/
+
+void reveal_vector(vector <double> vector)
+{
+	ROS_INFO("--DIRECTION VECTOR--");
+	ROS_INFO("--DIRECTION VECTOR SIZE-- [%lu]", vector.size());
+	for(int i = 0; i < vector.size();i++)
+	{
+		ROS_INFO("Element [%i]: [%f]", i, vector[i]);
+	}
+}
+
+/*
+double bool_test(bool val)
+{
+
+	if (val == 1)
+		ROS_INFO("True");
+	else
+		ROS_INFO("False");
+
+}
+*/
+
+/*
+void max_vector_element(vector <double> vector, double& c, double& I)
+{
+
+	c = vector[0]; //in case if all elements equal
+	I = 0;	
+	
+	for (int i = 0;i < (vector.size()-1);i++) 
+	{
+		//if (c > vector[i+1]){
+		//	c = c;
+		//	I = I;}
+		//else 
+		if (c < vector[i+1]){
+			c = vector[i+1];
+			I = i+1;}
+	}
+}
+*/
+
+double DestinRad(double ori, double dest)
+{
+	double destra;
+	if ((ori - dest) < -PI) //readjust distance from lower limit
+	{	
+		destra = (ori - dest) + (2*PI);
+		fromright = 1; //apply 2pi correction to right direction below limit
+		fromleft = 0;
+	}
+	else if ((ori - dest) > PI) //readjust distance from upper limit
+	{
+		destra = (ori - dest) - (2*PI);
+		fromright = 0;
+		fromleft = 1; //apply 2pi correction to left direction above limit
+	
+	}
+	else //within limit
+	{
+		destra = (ori - dest);
+		fromright = 0;
+		fromleft = 0;
+	}
+	return destra;
+}
+
+
+
+
+
+void OdomInfo(const nav_msgs::Odometry::ConstPtr& msg)
+{
+	double yaw;
+	
+	yaw = tf::getYaw(msg->pose.pose.orientation);
+	ROS_INFO("Yaw Angle: [%f]", yaw);
+	
+	geometry_msgs::Twist vel;
+ 	float deg90 = (PI/2);
+ 	float de45g = (PI/4);
+ 	float deg180 = (PI);
+ 	float destrad;
+ 	
+ 	
+ 	if (controlint == 0)
+ 	{
+ 		originyaw = yaw;
+ 		ROS_INFO("Origin locked in: [%f]", originyaw);
+ 		controlint++;
+ 	} 
+ 	
+ 	
+
+	//ROS_INFO("Odom Orien x: [%f]", msg->pose.pose.orientation.x);
+	//ROS_INFO("Odom Orien y: [%f]", msg->pose.pose.orientation.y);
+	//ROS_INFO("Odom Orien z: [%f]", msg->pose.pose.orientation.z);
+	//ROS_INFO("Odom Orien w: [%f]", msg->pose.pose.orientation.w);
+	//ROS_INFO("Yaw Angle Target (90 degrees): [%f]", (originyaw - deg90));
+	
+	
+	if ((originyaw - deg90) < -PI) //readjust distance from lower limit
+	{	
+		destrad = (originyaw - deg90) + (2*PI);
+	}
+	else if ((originyaw - deg90) > PI) //readjust distance from upper limit
+	{
+		destrad = (originyaw - deg90) - (2*PI);
+	
+	}
+	else //within limit
+	{
+		destrad = (originyaw - deg90);
+	}
+	
+	
+	
+	if (tf::getYaw(msg->pose.pose.orientation) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (90 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (90 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (90 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (90 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+
+}
+
+void OdomInfo2(const nav_msgs::Odometry::ConstPtr& msg)
+{
+
+ if (enable_sub == 1){
+
+	double yaw;
+	
+	yaw = tf::getYaw(msg->pose.pose.orientation);
+	ROS_INFO("Yaw Angle: [%f]", yaw);
+	
+	geometry_msgs::Twist vel;
+ 	float deg90 = (PI/2);
+ 	float deg45 = (PI/4);
+ 	float deg180 = (PI);
+ 	float destrad;
+ 	
+ 	
+ 	if (controlint == 0)
+ 	{
+ 		originyaw = yaw;
+ 		ROS_INFO("Origin locked in: [%f]", originyaw);
+ 		controlint++;
+ 	} 
+
+	switch (stage){
+	case 0: //turn right -45 degrees
+	{
+	locate_enable = 1;
+	ROS_INFO("--Case 0---");
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad){
+	ROS_INFO("--START Case 0--");
+	ROS_INFO("Current Yaw: [%f]", (tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)));
+	ROS_INFO("Destrad: [%f]", destrad);
+	ROS_INFO("Stage: [%i]", stage);
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.5;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else{
+	ROS_INFO("--DONE Case 0--");
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint= 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("Stage: [%i]", stage);
+	ROS_INFO("--PUBLISHING--");
+	
+	}
+	break;
+	case 1: //turn right 45 degrees
+	{
+	locate_enable = 2;
+	ROS_INFO("--Case 1---");
+	ROS_INFO("Stage: [%i]", stage);
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 2;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint = 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 2: //turn left 180 degrees
+	{
+	locate_enable = 3;
+	ROS_INFO("--Case 2---");
+	destrad = DestinRad(originyaw, deg180);
+	if ((tf::getYaw(msg->pose.pose.orientation) - (fromleft*2*PI)) <= destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.2;
+	ROS_INFO("Yaw Angle Target (+180 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (+180 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 3;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (+180 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (+180 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint = 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 3: //turn right 45 degrees
+	{
+	locate_enable = 4;
+	ROS_INFO("--Case 3---");
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 4;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint= 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 4: //turn right 45 degrees
+	{
+	locate_enable = 5;
+	ROS_INFO("--Case 4---");
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 5;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint= 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 5: //origin point
+	{ROS_INFO("---DONE!----");
+	
+	reveal_vector(locate);
+	ros::Duration(3).sleep();
+	stage = 0;
+	controlint = 0;
+	enable_sub = 0;
+	}
+	break;
+	default:
+	{
+	ROS_INFO("--DEFAULT--");
+	controlint = 0;
+	stage = 0;
+	}
+	break;
+	}
+	
+	}
+	
+ else{
+ 	ROS_INFO("Turning subfunction done");
+ 	}
+
+
+}
+
+void OdomInfo3(const nav_msgs::Odometry::ConstPtr& msg)
+{
+	/*
+	//int count = 0;
+	//double secs = ros::Time::now().toSec();
+ 	
+ 	std_msgs::Empty resetodom; 
+ 	double yaw;
+ 	yaw = tf::getYaw(msg->pose.pose.orientation);
+ 	ROS_INFO("Yaw Angle Before: [%f]",yaw);	
+ 	
+ 	
+ 	double secs = ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs) <= 0.5){
+ 	chatter_pub2.publish(resetodom);
+ 	}
+ 	*/
+ 	
+ 	/*
+ 	double secs = ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs) <= 3.0){
+	yaw = tf::getYaw(msg->pose.pose.orientation);
+	ROS_INFO("Yaw Angle Before: [%f]",yaw);	
+	}
+	//ROS_INFO("Secs: [%f]", secs);
+	//ros::Duration(2).sleep();
+	//chatter_pub2.publish(resetodom);
+	
+	double secs2 = ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs2) <= 3.0){
+	double yaw2 = tf::getYaw(msg->pose.pose.orientation);
+ 	ROS_INFO("Yaw Angle After: [%f]",yaw2);
+ 	}
+	*/
+	
+	
+	/* 
+ 
+ 	double secs = ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs) <= 3.0){
+	ROS_INFO("Yaw Angle: [%f]", tf::getYaw(msg->pose.pose.orientation));
+	}
+	
+	ROS_INFO("---Break----");
+	//ros::Duration(3).sleep();
+	chatter_pub2.publish(resetodom);
+	
+	double secs2 = ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs2) <= 3.0){
+	ROS_INFO("Yaw Angle: [%f]", tf::getYaw(msg->pose.pose.orientation));
+	}
+	 */
+  if (locate_enable == 0){
+  
+  	std_msgs::Empty resetodom;
+  	
+ 	double secs = ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs) <= 1.5){
+ 	//chatter_pub2.publish(resetodom);
+ 	}
+ }
+ 
+ if (enable_sub == 1){
+
+	double yaw;
+	
+	yaw = tf::getYaw(msg->pose.pose.orientation);
+	ROS_INFO("Yaw Angle: [%f]", yaw);
+	
+	geometry_msgs::Twist vel;
+ 	float deg90 = (PI/2);
+ 	float deg45 = (PI/4);
+ 	float deg180 = (PI);
+ 	float deg0 = 0;
+ 	float destrad;
+ 	
+ 	
+ 	if (controlint == 0)
+ 	{
+ 		originyaw = yaw;
+ 		ROS_INFO("Origin locked in: [%f]", originyaw);
+ 		controlint++;
+ 	} 
+
+	switch (stage){
+	case 0: //turn right -45 degrees from origin
+	{
+	locate_enable = 1;
+	ROS_INFO("--Case 0---");
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad){
+	ROS_INFO("--START Case 0--");
+	ROS_INFO("Current Yaw: [%f]", (tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)));
+	ROS_INFO("Destrad: [%f]", destrad);
+	ROS_INFO("Stage: [%i]", stage);
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.5;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else{
+	ROS_INFO("--DONE Case 0--");
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint= 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("Stage: [%i]", stage);
+	ROS_INFO("--PUBLISHING--");
+	
+	}
+	break;
+	case 1: //turn right 90 degrees from origin
+	{
+	locate_enable = 2;
+	ROS_INFO("--Case 1---");
+	ROS_INFO("Stage: [%i]", stage);
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 2;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint = 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 2: //turn left until 90 degrees from origin
+	{
+	locate_enable = 3;
+	ROS_INFO("--Case 2---");
+	destrad = DestinRad(originyaw, deg180);
+	if ((tf::getYaw(msg->pose.pose.orientation) - (fromleft*2*PI)) <= destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.2;
+	ROS_INFO("Yaw Angle Target (+180 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (+180 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 3;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (+180 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (+180 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint = 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 3: //turn right 45 degrees
+	{
+	locate_enable = 4;
+	ROS_INFO("--Case 3---");
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 4;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint= 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 4: //turn right until origin
+	{
+	locate_enable = 5;
+	ROS_INFO("--Case 4---");
+	destrad = DestinRad(originyaw, deg45);
+	if ((tf::getYaw(msg->pose.pose.orientation) + (fromright*2*PI)) > destrad)
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.2;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	}
+	else
+	{
+	//locate_enable = 5;
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Yaw Angle Target (-45 degrees): [%f]", destrad);
+	ROS_INFO("Yaw Angle Progress (-45 degrees): [%f]",tf::getYaw(msg->pose.pose.orientation));
+	ROS_INFO("90 degrees done");
+	stage++;
+	controlint= 0;
+	//ros::Duration(3).sleep();
+	}
+	//chatter_pub.publish(vel);
+	ROS_INFO("--PUBLISHING--");
+	}
+	break;
+	case 5: //origin point
+	{ROS_INFO("---DONE!----");
+	
+	reveal_vector(locate);
+	//ros::Duration(3).sleep();
+	stage = 0;
+	controlint = 0;
+	enable_sub = 0;
+	locate_enable = 0;
+	}
+	break;
+	default:
+	{
+	ROS_INFO("--DEFAULT--");
+	controlint = 0;
+	stage = 0;
+	}
+	break;
+	}
+	
+	}
+	
+ else{
+ 	ROS_INFO("Turning subfunction done");
+ 	}
+
+
+}
+
+
+void OdomInfo4(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& msg){
+
+
+	double yaw;
+	
+	yaw = tf::getYaw(msg->pose.pose.orientation);
+	ROS_INFO("Yaw Angle: [%f]", yaw);
+
+
+
+
+
+
+}
+
+
+void IRInfo(const kobuki_msgs::DockInfraRed::ConstPtr& msg)
+//void IRInfo(const complete_test::irobotdock::ConstPtr& msg)
+{
+	ROS_INFO("IR Data 0: [%i]",msg->data[0]);
+	ROS_INFO("Data 1: [%i]",msg->data[1]);
+	ROS_INFO("Data 2: [%i]",msg->data[2]);
+	
+	global1 = 3;
+	
+	
+
+}
+
+void IRInfo2(const kobuki_msgs::SensorState::ConstPtr& msg2)
+//void IRInfo(const complete_test::irobotdock::ConstPtr& msg)
+{
+	ROS_INFO("Bumper Values: [%i]", msg2->bumper);
+	ROS_INFO("Charge Values: [%i]", msg2->charger);
+	ROS_INFO("Wheel Drops: [%i]", msg2->wheel_drop);
+	ROS_INFO("Battery voltage: [%i]",msg2->battery);
+	
+	float bat_sign = (msg2->battery);
+	
+	ROS_INFO("Battery Voltage (float): [%f]", bat_sign);
+	
+	
+	global2 = 4;
+
+
+}
+
+void EventInfo(const complete_test::snnevent::ConstPtr& msg2){
+
+        ROS_INFO("START!");
+        ROS_INFO("Battery Event: [%i]", msg2->battery);
+        ROS_INFO("Beam Event: [%i]", msg2->beam);
+        ROS_INFO("Bump Event: [%i]", msg2->bump);
+        ROS_INFO("Home Event: [%i]", msg2->object);
+        
+        int bat_score = 1*(msg2->battery);
+        int beam_score = 2*(msg2->beam);
+        int bump_score = 4*(msg2->bump);
+        int obj_score = 8*(msg2->object);
+        
+        
+        int total_event_score = bat_score + beam_score + bump_score + obj_score;
+        
+        ROS_INFO("Battery Score: [%i]", bat_score);
+        ROS_INFO("Beam Score: [%i]", beam_score);
+        ROS_INFO("Bump Score: [%i]", bump_score);
+        ROS_INFO("Home Score: [%i]", obj_score);
+        
+        ROS_INFO("Total Event Score: [%i]", total_event_score);
+        //ros::Duration(8).sleep();
+        
+        //writing of data to main network
+        ofstream f("../carlsim-2.2.0/upNet.sh");
+        f<<"#!/bin/bash";
+        f<<"\n";
+        f<<"cd ~/Documents/carlsim-2.2.0";
+        f<<"\n";
+        f<<"sed -i 's#int event_value =#int event_value = ";
+        f<<total_event_score;
+        f<<";";
+        f<<" ";
+        f<<"//#g' ./examples/ROSSNN/main_ROSSNN.cpp";
+        f<<"\n";
+        f<<"make";
+        f<<"\n";
+        //f<<"./examples/ROSSNN/ROSSNN";
+        //f<<"\n";
+        f<<"cd ~/Documents/testbed";
+        f.close();
+        
+        
+        
+//        //writing of data to constant header
+// ofstream f("../carlsim-2.2.0/examples/ROSSNN/ROSevent.h");
+//	
+//	
+//	//Data Headers
+//	f<<"namespace ROS_constants";
+//	f<<"\n";
+//	f<<"{";
+//	f<<"\n";
+//	f<<"const int GLOBAL_CONST_EVENT_NEURON = 11;";
+//	f<<"\n";
+//	f<<" // ... other related constants";
+//	f<<"\n";
+//	f<<"} // namespace constants";
+//	f.close();
+        
+        
+        system("~/Documents/carlsim-2.2.0/upNet.sh");
+	system("~/Documents/carlsim-2.2.0/examples/ROSSNN/ROSSNN");
+	system("~/Documents/rossnn_run");
+	//ros::Duration(4).sleep();
+	
+	complete_test::snnevent sendback;
+	
+	int lines;
+	ifstream read("./scripts/common/outfile-715.txt"); //default outfile
+        read>>lines;
+	ROS_INFO("The number of default spikes is [%i]", lines);
+	read.close();
+	
+	
+	
+	int lines2;
+	ifstream read2("./scripts/common/ach_outfile-715.txt"); //ach outfile
+        read2>>lines2;
+	ROS_INFO("The number of ach spikes is [%i]", lines2);
+	read2.close();
+	sendback.ach = lines2;
+	
+	
+	
+	int lines4;
+	ifstream read4("./scripts/common/dopa_outfile-715.txt"); //dopa outfile
+        read4>>lines4;
+	ROS_INFO("The number of dopa spikes is [%i]", lines4);
+	read4.close();
+	sendback.dopa = lines4;
+	
+	int lines3;
+	ifstream read3("./scripts/common/sero_outfile-715.txt"); //sero outfile
+        read3>>lines3;
+	ROS_INFO("The number of sero spikes is [%i]", lines3);
+	read3.close();
+	sendback.sero = lines3;
+	
+	int lines5;
+	ifstream read5("./scripts/common/openfield_outfile-715.txt"); //openfield outfile
+        read5>>lines5;
+	ROS_INFO("The number of openfield spikes is [%i]", lines5);
+	read5.close();
+	sendback.openfield = lines5;
+	
+	int lines6;
+	ifstream read6("./scripts/common/explore_outfile-715.txt"); //explore outfile
+        read6>>lines6;
+	ROS_INFO("The number of explore spikes is [%i]", lines6);
+	read6.close();
+	sendback.explore = lines6;
+	
+	int lines7;
+	ifstream read7("./scripts/common/wallfollow_outfile-715.txt"); //wallfollow outfile
+        read7>>lines7;
+	ROS_INFO("The number of wallfollow spikes is [%i]", lines7);
+	read7.close();
+	sendback.wallfollow = lines7;
+	
+	int lines8;
+	ifstream read8("./scripts/common/findhome_outfile-715.txt"); //findhome outfile
+        read8>>lines8;
+	ROS_INFO("The number of findhome spikes is [%i]", lines8);
+	read8.close();
+	sendback.findhome = lines8;
+	
+	ROS_INFO("DONE!");
+	
+	sendback.enable = 1;
+	
+	chatter_pub3.publish(sendback);
+	
+	ROS_INFO("Data sent back!");
+	
+        
+
+}
+
+
+
+
+void WallFollow(float distVal)
+{
+
+ROS_INFO("--WALL FOLLOW--");
+geometry_msgs::Twist vel;
+int wall;
+//float WALL_CLOSE;
+//float WALL_FAR;
+int bump = 0;
+
+float WALL_CLOSE = 1.5;
+float WALL_FAR = WALL_CLOSE + 2;
+
+//vel.angular.z = 0.0;
+//vel.linear.x = 0.0;
+ROS_INFO("Wall Follow");
+	if (bump == 1) 
+	{
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.4;
+	ROS_INFO("Bump - Wall Follow");
+	}
+	else if (distVal > WALL_FAR)
+	{
+	vel.linear.x = 0.5;
+	vel.angular.z = 0.5;
+	ROS_INFO("distVal > WALL_FAR"); 
+	}
+	else if (distVal < WALL_CLOSE)
+	{
+	vel.linear.x = 0.5;
+	vel.angular.z = -0.5;
+	ROS_INFO("distVal < WALL_CLOSE");
+	}
+	else 
+	{
+	vel.linear.x = 1.0;
+	vel.angular.z = 0.0;
+	ROS_INFO("Straight Ahead");
+	}
+
+	//chatter_pub.publish(vel);
+	//return;
+
+
+}
+
+void OpenField(float left, float front, float right){
+
+ROS_INFO("--OPEN FIELD--");
+
+float MAXSPEED = 0.40;
+float MINSPEED = 0.10;
+float MAXDIST = 300;
+float TURN = 0.25;
+geometry_msgs::Twist vel;
+int bump = 0;
+
+//find the most open area. speed is proportional to the amount of open space
+//go straight
+if (front > left && front > right){ 
+    if (front > MAXDIST){
+        front = MAXDIST;}
+    
+    if (bump == 1){
+        //SetFwdVelAngVelCreate(serport, 0.0, 2*TURN);
+        vel.linear.x = 0.0;
+		vel.angular.z = 0.4;}
+    else{
+        //SetFwdVelAngVelCreate(serport, max(MINSPEED,(front/MAXDIST)^2*MAXSPEED), 0.0);
+        vel.linear.x = 0.2;
+		vel.angular.z = 0.0;}
+}    
+
+//go left
+else if (left > right){ 
+    if (left > MAXDIST){
+        left = MAXDIST;}
+    
+    if (bump == 1){
+        //SetFwdVelAngVelCreate(serport, 0.0, 2*TURN);
+        vel.linear.x = 0.0;
+		vel.angular.z = 0.4;}
+    else{
+        //SetFwdVelAngVelCreate(serport, max(MINSPEED,(left/MAXDIST)^2*MAXSPEED), TURN);
+        vel.linear.x = 0.2;
+		vel.angular.z = 0.4;}
+}
+
+else{ //go to the right
+    if (right > MAXDIST){
+        right = MAXDIST;}
+    if (bump == 1){
+        //SetFwdVelAngVelCreate(serport, 0.0, 2*TURN);
+        vel.linear.x = 0.0;
+		vel.angular.z = 0.4;}
+    else{
+        //SetFwdVelAngVelCreate(serport, max(MINSPEED,(right/MAXDIST)^2*MAXSPEED), -1*TURN);
+        vel.linear.x = 0.2;
+		vel.angular.z = -0.4;}
+}		
+		//chatter_pub.publish(vel);
+}
+
+void ExploreObject(float left, float front, float right){
+
+ROS_INFO("--EXPLORE OBJECT--");
+
+float MAXSPEED = 0.25;
+float MINSPEED = 0.10;
+float MAXDIST = 300;
+float TURN = 0.5;
+int bump = 0;
+geometry_msgs::Twist vel;
+
+//speed is proportional to the amount of change
+if (front > left && front > right){ //% go straight
+    if (front > MAXDIST){
+        front = MAXDIST;}
+    
+    if (bump == 1){
+        //SetFwdVelAngVelCreate(serport, 0.0, 2*TURN);
+        vel.linear.x = 0.0;
+		vel.angular.z = 0.4;}
+    else{
+        //SetFwdVelAngVelCreate(serport, max(MINSPEED,(front/MAXDIST)^2*MAXSPEED), 0.0);
+        vel.linear.x = 0.2;
+		vel.angular.z = 0.0;}
+}
+
+    
+else if (left > right){     //% go to the left
+    if (left > MAXDIST){
+        left = MAXDIST;}
+        
+    if (bump == 1){
+        //SetFwdVelAngVelCreate(serport, 0.0, 2*TURN);
+        vel.linear.x = 0.0;
+		vel.angular.z = 0.4;}
+    else{
+        //SetFwdVelAngVelCreate(serport, max(MINSPEED,(left/MAXDIST)^2*MAXSPEED), TURN);
+        vel.linear.x = 0.2;
+		vel.angular.z = 0.4;}
+}        
+    
+else{ //% go to the right
+    if (right > MAXDIST){
+        right = MAXDIST;}
+    
+    if (bump == 1){
+        //SetFwdVelAngVelCreate(serport, 0.0, 2*TURN);
+        vel.linear.x = 0.0;
+		vel.angular.z = 0.4;}
+    else{
+        //SetFwdVelAngVelCreate(serport, max(MINSPEED,(right/MAXDIST)^2*MAXSPEED), -1*TURN);
+		vel.linear.x = 0.2;
+		vel.angular.z = -0.4;}
+}		
+		//chatter_pub.publish(vel);
+}
+
+
+void SetFront(int dir, float finalVal)
+{
+	//ROS_INFO("DIR IN FUNCTION [%i]", dir);
+	geometry_msgs::Twist vel;
+
+	if (dir == 0)
+	{
+	ROS_INFO("FACING FRONT");
+	ROS_INFO("Front Dist: [%f]", finalVal);
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.4;
+	}
+	else if (dir == 1)
+	{
+	ROS_INFO("FACING RIGHT_FRONT");
+	ROS_INFO("Right_Front Dist: [%f]", finalVal);
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.4;
+	}
+	else if (dir == 2)
+	{
+	ROS_INFO("FACING RIGHT");
+	ROS_INFO("Right Dist: [%f]", finalVal);
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.8;
+	}
+	else if (dir == 3)
+	{
+	ROS_INFO("FACING LEFT");
+	ROS_INFO("Left Dist: [%f]", finalVal);
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.8;
+	}
+	else if (dir == 4)
+	{
+	ROS_INFO("FACING LEFT_FRONT");
+	ROS_INFO("Left_Front Dist: [%f]", finalVal);
+	vel.linear.x = 0.0;
+	vel.angular.z = -0.4;
+	}
+	else
+	{
+	ROS_INFO("All Directions Done!");
+	vel.linear.x = 0.0;
+	vel.angular.z = 0.0;
+	}
+	//chatter_pub.publish(vel);
+}
+
+void FindHome(){
+
+ROS_INFO("--FIND HOME--");
+system("roslaunch kobuki_auto_docking activate.launch --screen");
+ROS_INFO("--AFTER FIND HOME--");
+}
+
+void AtHome(){
+
+ROS_INFO("--AT HOME--");
+
+
+}
+
+void LeaveHome(){
+
+ROS_INFO("--LEAVE HOME--");
+system("roslaunch complete_test com_minimal.launch");
+	geometry_msgs::Twist vel;
+
+
+	double secs =ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs) <= 4.0){
+	vel.linear.x = -0.3;
+	vel.angular.z = 0.0;
+	//chatter_pub.publish(vel);
+	}
+
+	double secs2 =ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs2) <= 4.0){
+	vel.linear.x = 	0.0;
+	vel.angular.z = 0.3;
+	//chatter_pub.publish(vel);
+	}
+
+}
+
+
+//void OpenField(
+
+
+void getinfo()
+{
+	/*
+	double secs =ros::Time::now().toSec();
+	while ((ros::Time::now().toSec() - secs) <= 0.8)
+	{
+	//ROS_INFO("Sleeping");
+	//ros::spinOnce();
+	ros::spin();
+	}
+	*/
+	//ros::AsyncSpinner spinner(4); // Use 4 threads
+   	//spinner.start();
+	
+
+}
+
+void LsrInfo(const sensor_msgs::LaserScan::ConstPtr& msg)
+{
+	//int times_run;
+	
+	//ros::param::set("/camera/depthimage_to_laserscan_loader/range_max", 10.0);
+	//ROS_INFO("Begin loop - LaserScan Info");
+	//ROS_INFO("Range Min: [%f]", msg->range_min);
+  	//ROS_INFO("Range Max: [%f]", msg->range_max);
+  	//ROS_INFO("Size of Ranges: [%lu]",msg->ranges.size());
+  	float minVal = (msg->range_max); //to begin loop
+  	float finalVal = 0;
+  	for (int i = 0;i<(msg->ranges.size()); i++){
+  		if ((msg->range_min) <= (msg->ranges[i]) && (msg->ranges[i]) <= (msg->range_max)){  //if in range, valid dist.
+  			if ((msg->ranges[i]) < minVal){													//if lower than prev. min. dist.
+  				minVal = (msg->ranges[i]);
+  				finalVal = minVal;
+  			}
+  		}
+  	}
+  	
+  	
+  	
+  	
+  	
+  	
+  	ROS_INFO("Min. Dist: [%f]", finalVal);
+  	
+  	/*if (locate_enable > 0)
+  	{
+  	  ROS_INFO("--DIRECTION RECORDED!!!!!!--");
+  	  ROS_INFO("Location Enable: [%i]", locate_enable);
+  	  locate[2] = finalVal;
+  	  //ros::Duration(2).sleep();
+  	}
+  	*/
+  	
+  	switch(locate_enable){
+  	case 1:
+  	locate[0] = finalVal;
+  	//ROS_INFO("LOC 1: [%f]", finalVal);
+  	//ros::Duration(3).sleep();
+  	break;
+  	case 2:
+  	locate[1] = finalVal;
+  	//ROS_INFO("LOC 2: [%f]", finalVal);
+  	//ros::Duration(3).sleep();
+  	break;
+  	case 3:
+  	locate[2] = finalVal;
+  	//ROS_INFO("LOC 3: [%f]", finalVal);
+  	//ros::Duration(3).sleep();
+  	break;
+  	case 4:
+  	locate[3] = finalVal;
+  	//ROS_INFO("LOC 4: [%f]", finalVal);
+  	//ros::Duration(3).sleep();
+  	break;
+  	case 5:
+  	locate[4] = finalVal;
+  	//ROS_INFO("LOC 5: [%f]", finalVal);
+  	//ros::Duration(3).sleep();
+  	break;
+  	}
+  	
+  
+  	//ROS_INFO("BEFORE FUNCTION");
+  	//ROS_INFO("DIRECTION #: [%i]", dir_vector);
+  	//SetFront(dir_vector, finalVal);
+  	//ROS_INFO("AFTER FUNCTION");
+  	//dir_vector++;
+  	//ROS_INFO("DIRECTION #: [%i]", dir_vector);
+  	//WallFollow(finalVal);
+  /*	
+  	SetFront(finalVal);
+  	SetRightFront(finalVal);
+  	SetRight(finalVal);
+  	SetLeft(finalVal);
+  	SetLeftFront(finalVal);
+  */	
+	//ROS_INFO("End loop - LaserScan Info");
+}
+
+//void OpenField(float distVal)
+//{
+//}
+
+
+
+
+
+
+
+
+int main(int argc, char **argv)
+{
+	
+	
+	/*
+	vector <vector <double> > mat;
+	//double c;
+	//double I;
+	
+	vector <double> vector1(4,0); //creates 2x4 array
+	//vector <double> vector2;
+	//vector1 = {4,3};
+	vector1[0] = 3;
+	vector1[1] = 3;
+	vector1[2] = 3;
+	vector1[3] = 3;
+	
+	//vector2 = {4,4};
+	//mat.push_back(vector1);
+	//mat.push_back(vector2);
+	
+	//vector <double> vector3;
+	
+	for(int i = 0; i < 7; i++){
+		vector <double> vector3(4,i);
+		
+		vector3[0] = 2934 - (2*i);
+		vector3[1] = 335- (2*i);
+		vector3[2] = 293- (2*i);
+		vector3[3] = 9023- (2*i);
+		mat.push_back(vector3);
+	}
+	
+	
+	for (int i = 0; i < mat.size(); i++)
+		{
+			for (int j = 0; j < mat[i].size(); j++)
+			{
+				ROS_INFO("At row [%i], col [%i] = [%f]", i,j,mat[i][j]);
+			}
+		//cout << endl;
+		}
+	
+	
+	std::vector<std::string> example;
+    example.push_back("this");
+    example.push_back("is");
+    example.push_back("a");
+    example.push_back("test");
+
+    
+    std::ofstream output_file("./example.txt");
+    std::ostream_iterator<double> output_iterator(output_file, " ");
+    std::ostream_iterator<double> output_iterator2(output_file, "\n");
+    for (int i = 0; i < mat.size(); i++){
+    //std::copy(mat[i].begin(), mat[i].end(), output_iterator);
+    std::copy(mat[i].begin(), mat[i].end(), output_iterator2);
+    }
+	
+	
+	ofstream f("./matrix.xls");
+	//f << m << " " << n << "n";
+	for (int i = 0; i < mat.size(); i++)
+  	{
+  		for (int j = 0; j < mat[i].size(); j++)
+    	{
+    		f << mat[i][j];
+    		f << " ";
+    	}	
+  		f << "\n";
+  	}
+	*/
+	// %Tag(INIT)%
+	ros::init(argc, argv, "vector_maker");
+	// %EndTag(INIT)%
+	
+	// %Tag(NODEHANDLE)%
+  	ros::NodeHandle n;
+	// %EndTag(NODEHANDLE)%
+	
+	// %Tag(LOOP_RATE)%
+  //ros::Rate loop_rate(10);
+	// %EndTag(LOOP_RATE)%
+	
+	
+
+	//ROS_INFO("Global1 before sub: [%i]",global1);
+	//ROS_INFO("Global2 before sub: [%i]",global2);
+	//ROS_INFO("Begin");
+	//system("roslaunch kobuki_auto_docking activate.launch --screen");
+	//ROS_INFO("After");
+	//system("cd ~/Documents/carlsim-2.2.0");
+	
+//        int total_event_score = 60;
+//	//writing of data to main network
+//        ofstream f("../carlsim-2.2.0/upNet.sh");
+//        f<<"#!/bin/bash";
+//        f<<"\n";
+//        f<<"cd ~/Documents/carlsim-2.2.0";
+//        f<<"\n";
+//        f<<"sed -i 's#int event_value =#int event_value = ";
+//        f<<total_event_score;
+//        f<<";";
+//        f<<" ";
+//        f<<"//#g' ./examples/ROSSNN/main_ROSSNN.cpp";
+//        f<<"\n";
+//        f<<"make";
+//        f<<"\n";
+//        f<<"./examples/ROSSNN/ROSSNN";
+//        f<<"\n";
+//        f<<"cd ~/Documents/testbed";
+//        f.close();
+	
+	
+
+	
+	//ros::Subscriber sub2 = n.subscribe("/scan", 0, LsrInfo); //Kinnect
+	//ros::Subscriber sub3 = n.subscribe("/odom", 0, OdomInfo3); //Turning
+	//ros::Subscriber sub5 = n.subscribe("/odom_combined", 0, OdomInfo4); //Turning
+	//ros::Subscriber sub3 = n.subscribe("/mobile_base/sensors/dock_ir", 0, IRInfo); //kobuki IR sensors
+	//ros::Subscriber sub4 = n.subscribe("/mobile_base/sensors/core", 0, IRInfo2); //kobuki core sensors
+	ros::Subscriber sub5 = n.subscribe("snn_event", 0, EventInfo);
+	
+	
+	//chatter_pub = n.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1);
+	//chatter_pub2 = n.advertise<std_msgs::Empty>("/mobile_base/commands/reset_odometry", 1);
+	chatter_pub3 = n.advertise<complete_test::snnevent>("snn_event_return", 1);
+	
+	//FindHome();
+	//LeaveHome();
+	
+	/*
+	
+	//writing of data to xls
+ ofstream f("./src/complete_test/src/test.xls");
+	//f << m << " " << n << "n";
+	
+	//Data Headers
+	f<<"current_time";
+	f<<" ";
+	f<<"behave_state";
+	f<<" ";
+	f<<"event[0]-ping";
+	f<<" ";
+	f<<"event[1]-battery";
+	f<<" ";
+	f<<"event[2]-bump";
+	f<<" ";
+	f<<"event[3]-beam";
+	f<<" ";
+	f<<"n[0]-ping";
+	f<<" ";
+	f<<"n[1]-battery";
+	f<<" ";
+	f<<"n[2]-bump";
+	f<<" ";
+	f<<"n[3]-beam";
+	f<<" ";
+	f<<"nm[0]-DA";
+	f<<" ";
+	f<<"nm[1]-5HT";
+	f<<" ";
+	f<<"achne[0]-ping";
+	f<<" ";
+	f<<"achne[1]-battery";
+	f<<" ";
+	f<<"achne[2]-bump";
+	f<<" ";
+	f<<"achne[3]-beam";
+	f<<" ";
+	f<<"w_e_achne[0]-ping_ach";
+	f<<" ";
+	f<<"w_e_achne[1]-bat_ach";
+	f<<" ";
+	f<<"w_e_achne[2]-bmp_ach";
+	f<<" ";
+	f<<"w_e_achne[3]-bea_ach";
+	f<<" ";
+	f<<"w_e_nm[0][0]-ping_DA";
+	f<<" ";
+	f<<"w_e_nm[0][1]-ping_5HT";
+	f<<" ";
+	f<<"w_e_nm[1][0]-bat_DA";
+	f<<" ";
+	f<<"w_e_nm[1][1]-bat_5HT";
+	f<<" ";
+	f<<"w_e_nm[2][0]-bmp_DA";
+	f<<" ";
+	f<<"w_e_nm[2][1]-bmp_5HT";
+	f<<" ";
+	f<<"w_e_nm[3][0]-bea_DA";
+	f<<" ";
+	f<<"w_e_nm[3][1]-bea_5HT";
+	f<<"\n";
+	
+	
+	*/
+	
+	//getinfo();
+	
+	
+	
+	//ros::spinOnce();
+	ros::spin();
+	
+	//ros::AsyncSpinner spinner(12); // Use 4 threads
+   	//spinner.start();
+	
+	//loop_rate.sleep();
+	//ROS_INFO("Global1 after sub: [%i]",global1);
+	//ROS_INFO("Global2 after sub: [%i]",global2);
+	
+	
+	// %Tag(RATE_SLEEP)%
+    
+	// %EndTag(RATE_SLEEP)%
+	
+	
+	
+	
+	
+	
+	
+	
+	//double begin = ros::Time::now().toSec();
+	//ROS_INFO("Time is: [%f]",begin);
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	//double arr[] = {20,6,4,27,2,900,2,1};
+	//vector<double> vec (arr, arr + sizeof(arr) / sizeof(double) );
+	
+	//max_vector_element(vec, c, I);
+	//ROS_INFO("Maximum Val: %f at element(zero based) %f",c,I);
+	
+	
+  
+	
+    //bool_test( (1>3));
+    
+    //ROS_INFO("Min of 3 and 2: [%i]",min(3,2));
+	
+	//vector <double> vector3(8,5);
+	
+	//ROS_INFO("vector3 Size: [%lu]",vector3.size());
+	//ROS_INFO("vector 3 sum: [%f]",sum_vector(vector3));
+	
+	
+	
+	/*
+	for (int r = 1; r <= 5; r++) //creates 5x4 array of 3's
+	{
+		vector <double> row(4, 3);
+		mat.push_back(row);
+	}
+	*/
+	
+	
+		
+
+     
+     
+
+    /*
+    for (int i = 0;i < 10; i++)
+    { 
+    ROS_INFO("------ LOOP #[%i] --------",(i+1)); 
+    //ROS_INFO("Random number v1: [%i]", v1); 
+	//ROS_INFO("Random number number: [%f]", number);
+	 
+	ROS_INFO("Random number number: [%f]", rand_num());
+	}
+	*/
+		//return 0;
+
+}

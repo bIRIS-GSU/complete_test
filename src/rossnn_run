@@ -1,0 +1,6 @@
+ #!/bin/bash
+ 
+ cd ~/Documents/testbed
+ source devel/setup.bash
+ ./scripts/common/matlab -nosplash -nodesktop -nojvm -logfile out.log -r "total_spikes(715);, quit"
+
