@@ -1369,16 +1369,16 @@ int main(int argc, char **argv)
 	
 	ros::Duration(2).sleep();
 	
-	ros::Subscriber sub1 = node_handle.subscribe("/odom", 1, OdomInfo2); //Internal Odometry sensors
-	ros::Subscriber sub2 = node_handle.subscribe("/scan", 1, LsrInfo); //Kinnect Camera
-	ros::Subscriber sub3 = node_handle.subscribe("/mobile_base/sensors/dock_ir", 1, IRInfo); //kobuki IR sensors
-	ros::Subscriber sub4 = node_handle.subscribe("/mobile_base/sensors/core", 1, CoreInfo); //kobuki core sensors
+	ros::Subscriber sub1 = node_handle.subscribe("odom", 1, OdomInfo2); //Internal Odometry sensors
+	ros::Subscriber sub2 = node_handle.subscribe("scan", 1, LsrInfo); //Kinnect Camera
+	ros::Subscriber sub3 = node_handle.subscribe("mobile_base/sensors/dock_ir", 1, IRInfo); //kobuki IR sensors
+	ros::Subscriber sub4 = node_handle.subscribe("mobile_base/sensors/core", 1, CoreInfo); //kobuki core sensors
 	//ros::Subscriber sub5 = node_handle.subscribe("snn_event_return", 0, EvReturnInfo);
-	ros::Subscriber sub5 = node_handle.subscribe("/biris_snn/state", 0, EvReturnInfo);
-	chatter_pub = node_handle.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1);
-	chatter_pub2 = node_handle.advertise<std_msgs::Empty>("/mobile_base/commands/reset_odometry", 1);
+	ros::Subscriber sub5 = node_handle.subscribe("biris_snn/state", 0, EvReturnInfo);
+	chatter_pub = node_handle.advertise<geometry_msgs::Twist>("mobile_base/commands/velocity", 1);
+	chatter_pub2 = node_handle.advertise<std_msgs::Empty>("mobile_base/commands/reset_odometry", 1);
 	//chatter_pub3 = node_handle.advertise<complete_test::snnevent>("snn_event", 1);
-	chatter_pub3 = node_handle.advertise<complete_test::event_neuron_msg>("/biris_snn/event", 100);
+	chatter_pub3 = node_handle.advertise<complete_test::event_neuron_msg>("biris_snn/event", 100);
 	main_neuromodulated_program_direct_sensor();
 
 }

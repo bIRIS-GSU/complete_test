@@ -1159,7 +1159,7 @@ void main_neuromodulated_program_direct_sensor()
 		while(enable_sub == 1)
 		{ //stays in loop until vectoring is done
 			ROS_INFO("Sensor Vectoring in Progress - Main Subroutine Paused");
-			ros::Duration(15).sleep();
+			//ros::Duration(15).sleep();
 		}
 		//ros::Duration(15).sleep();
 		//ROS_INFO("Sensor Vectoring Finished");
@@ -1285,7 +1285,7 @@ void main_neuromodulated_program_direct_sensor()
 		{ //waits on SNN data
 			ROS_INFO("Waiting on Neural Activity Values");
 			ros::spinOnce();
-			ros::Duration(15).sleep();
+			//ros::Duration(15).sleep();
 		}
 	
 		snn_enable = 0; //sets for next loop
@@ -1369,10 +1369,10 @@ int main(int argc, char **argv)
 	
 	ros::Duration(2).sleep();
 	
-	ros::Subscriber sub1 = node_handle.subscribe("/odom", 10, OdomInfo2); //Internal Odometry sensors
-	ros::Subscriber sub2 = node_handle.subscribe("/scan", 10, LsrInfo); //Kinnect Camera
-	ros::Subscriber sub3 = node_handle.subscribe("/mobile_base/sensors/dock_ir", 10, IRInfo); //kobuki IR sensors
-	ros::Subscriber sub4 = node_handle.subscribe("/mobile_base/sensors/core", 10, CoreInfo); //kobuki core sensors
+	ros::Subscriber sub1 = node_handle.subscribe("/odom", 1, OdomInfo2); //Internal Odometry sensors
+	ros::Subscriber sub2 = node_handle.subscribe("/scan", 1, LsrInfo); //Kinnect Camera
+	ros::Subscriber sub3 = node_handle.subscribe("/mobile_base/sensors/dock_ir", 1, IRInfo); //kobuki IR sensors
+	ros::Subscriber sub4 = node_handle.subscribe("/mobile_base/sensors/core", 1, CoreInfo); //kobuki core sensors
 	//ros::Subscriber sub5 = node_handle.subscribe("snn_event_return", 0, EvReturnInfo);
 	ros::Subscriber sub5 = node_handle.subscribe("/biris_snn/state", 0, EvReturnInfo);
 	chatter_pub = node_handle.advertise<geometry_msgs::Twist>("/mobile_base/commands/velocity", 1);
